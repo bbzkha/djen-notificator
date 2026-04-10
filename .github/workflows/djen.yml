@@ -1,0 +1,44 @@
+name: DJEN Notificator
+
+on:
+  # Roda todo dia às 08:00 horário de Brasília (BRT = UTC-3 → 11:00 UTC)
+  schedule:
+    - cron: "0 11 * * *"
+
+  # Permite disparar manualmente pela aba "Actions" do repositório
+  workflow_dispatch:
+    inputs:
+      data:
+        description: "Data de busca (YYYY-MM-DD). Padrão: hoje"
+        required: false
+        default: ""
+
+jobs:
+  notificar:
+    name: Consultar DJEN e notificar
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Executar notificador
+        env:
+          EMAIL_FROM:     ${{ secrets.EMAIL_FROM }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO:       ${{ secrets.EMAIL_TO }}
+        run: |
+          if [ -n "${{ github.event.inputs.data }}" ]; then
+            python main.py --data "${{ github.event.inputs.data }}"
+          else
+            python main.py
+          fi
