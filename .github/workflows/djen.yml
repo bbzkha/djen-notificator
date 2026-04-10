@@ -12,6 +12,9 @@ on:
         description: "Data de busca (YYYY-MM-DD). Deixe vazio para usar hoje."
         required: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   notificar:
     name: Consultar DJEN e notificar
