@@ -24,7 +24,7 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
 EMAIL_TO      = os.getenv("EMAIL_TO", "destinatario@email.com")
 EMAIL_SUBJECT = "DJEN – Novas publicações encontradas"
 
-SMTP_HOST = "smtp.office365.com"
+SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 
 # ---------------------------------------------------------------------------
