@@ -1,8 +1,7 @@
 import os
 
 # ---------------------------------------------------------------------------
-# Palavras-chave buscadas no DJEN a cada execução
-# Adicione nomes de partes, CPF, CNPJ, número de processo, etc.
+# Palavras-chave buscadas no DJEN a cada execucao
 # ---------------------------------------------------------------------------
 KEYWORDS = [
     "Lorena Zucatelli dos Santos",
@@ -13,23 +12,15 @@ KEYWORDS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Email
+# Email via SendGrid
+# No GitHub Actions configure os Secrets: SENDGRID_API_KEY, EMAIL_FROM, EMAIL_TO
 # ---------------------------------------------------------------------------
-# Remetente e senha vêm de variáveis de ambiente para não expor credenciais.
-# No GitHub Actions configure os Secrets: EMAIL_FROM e EMAIL_PASSWORD.
-EMAIL_FROM     = os.getenv("EMAIL_FROM", "")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
-
-# Destinatário pode ficar aqui ou também vir de variável de ambiente.
-EMAIL_TO      = os.getenv("EMAIL_TO", "destinatario@email.com")
-EMAIL_SUBJECT = "DJEN – Novas publicações encontradas"
-
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
+EMAIL_FROM       = os.getenv("EMAIL_FROM", "")
+EMAIL_TO         = os.getenv("EMAIL_TO", "")
+EMAIL_SUBJECT    = "DJEN - Novas publicacoes encontradas"
 
 # ---------------------------------------------------------------------------
 # DJEN API
-# Endpoint público do CNJ para consulta de publicações.
-# Documentação: https://comunicaapi.pje.jus.br/swagger-ui.html
 # ---------------------------------------------------------------------------
 DJEN_API_URL = "https://comunicaapi.pje.jus.br/api/v1/publicacao"

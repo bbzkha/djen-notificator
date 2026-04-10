@@ -1,28 +1,26 @@
 """
 DJEN Notificator
 ================
-Consulta diária ao DJEN (comunicaapi.pje.jus.br) por palavras-chave e
-envia um e-mail via Outlook quando encontra publicações.
+Consulta diaria ao DJEN (comunicaapi.pje.jus.br) por palavras-chave e
+envia um e-mail via SendGrid quando encontra publicacoes.
 
 Uso:
     python main.py
-    python main.py --data 2024-06-15   # busca em data específica
+    python main.py --data 2024-06-15   # busca em data especifica
 """
 
 import sys
-import smtplib
+import json
 import logging
 import argparse
 from datetime import date
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import requests
 
 from config import (
     KEYWORDS,
-    EMAIL_FROM, EMAIL_PASSWORD, EMAIL_TO, EMAIL_SUBJECT,
-    SMTP_HOST, SMTP_PORT,
+    SENDGRID_API_KEY,
+    EMAIL_FROM, EMAIL_TO, EMAIL_SUBJECT,
     DJEN_API_URL,
 )
 
@@ -35,20 +33,10 @@ log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Consulta à API
+# Consulta a API
 # ---------------------------------------------------------------------------
 
 def buscar_publicacoes(keyword: str, data_busca: str) -> list:
-    """
-    Retorna lista de publicações do DJEN que contenham *keyword* na data
-    *data_busca* (formato YYYY-MM-DD).
-
-    Parâmetros aceitos pela API (ajuste conforme documentação oficial):
-        dataDisponibilizacao – data de disponibilização
-        texto                – texto livre para filtro
-        pagina               – índice da página (0-based)
-        tamanho              – itens por página
-    """
     params = {
         "dataDisponibilizacao": data_busca,
         "texto": keyword,
@@ -68,8 +56,6 @@ def buscar_publicacoes(keyword: str, data_busca: str) -> list:
 
     payload = response.json()
 
-    # A API pode retornar a lista diretamente ou aninhada em uma chave.
-    # Adapte a chave abaixo conforme o retorno real da API.
     if isinstance(payload, list):
         return payload
 
@@ -77,18 +63,16 @@ def buscar_publicacoes(keyword: str, data_busca: str) -> list:
         for chave in ("resultado", "content", "data", "publicacoes", "items", "hits"):
             if chave in payload and isinstance(payload[chave], list):
                 return payload[chave]
-        # resposta é um único objeto
         return [payload] if payload else []
 
     return []
 
 
 # ---------------------------------------------------------------------------
-# Formatação do e-mail
+# Formatacao do e-mail
 # ---------------------------------------------------------------------------
 
 def _campo(pub: dict, *chaves, fallback: str = "N/D") -> str:
-    """Lê a primeira chave encontrada no dict; retorna *fallback* se nenhuma."""
     for chave in chaves:
         if chave in pub and pub[chave]:
             return str(pub[chave])
@@ -102,10 +86,10 @@ def formatar_publicacao_html(pub: dict, indice: int) -> str:
     texto    = _campo(pub, "texto", "conteudo", "descricao", fallback="")
 
     if len(texto) > 600:
-        texto = texto[:600] + "…"
+        texto = texto[:600] + "..."
 
     linhas = [
-        f"<strong>#{indice} — Processo:</strong> {numero}<br>",
+        f"<strong>#{indice} - Processo:</strong> {numero}<br>",
         f"<strong>Data:</strong> {data_pub}<br>",
     ]
     if tribunal:
@@ -127,8 +111,8 @@ def montar_html(resultados: dict) -> str:
 
     partes = [
         "<html><body style='font-family:sans-serif;color:#222'>",
-        f"<h2 style='color:#1a5276'>DJEN – Publicações encontradas em {hoje}</h2>",
-        f"<p><strong>Total:</strong> {total} publicação(ões)</p>",
+        f"<h2 style='color:#1a5276'>DJEN - Publicacoes encontradas em {hoje}</h2>",
+        f"<p><strong>Total:</strong> {total} publicacao(oes)</p>",
         "<hr>",
     ]
 
@@ -136,8 +120,8 @@ def montar_html(resultados: dict) -> str:
         if not pubs:
             continue
         partes.append(
-            f"<h3 style='color:#1f618d'>🔑 Palavra-chave: <em>{keyword}</em>"
-            f" — {len(pubs)} resultado(s)</h3>"
+            f"<h3 style='color:#1f618d'>Palavra-chave: <em>{keyword}</em>"
+            f" - {len(pubs)} resultado(s)</h3>"
         )
         for i, pub in enumerate(pubs, 1):
             partes.append(formatar_publicacao_html(pub, i))
@@ -151,33 +135,42 @@ def montar_html(resultados: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Envio de e-mail
+# Envio de e-mail via SendGrid
 # ---------------------------------------------------------------------------
 
 def enviar_email(resultados: dict) -> None:
-    if not EMAIL_FROM:
-        log.error("EMAIL_FROM não configurado. Defina a variável de ambiente.")
+    if not SENDGRID_API_KEY:
+        log.error("SENDGRID_API_KEY nao configurado. Defina a variavel de ambiente.")
         sys.exit(1)
-    if not EMAIL_PASSWORD:
-        log.error("EMAIL_PASSWORD não configurado. Defina a variável de ambiente.")
-        sys.exit(1)
-
-    msg = MIMEMultipart("alternative")
-    msg["From"]    = EMAIL_FROM
-    msg["To"]      = EMAIL_TO
-    msg["Subject"] = EMAIL_SUBJECT
 
     corpo_html = montar_html(resultados)
-    msg.attach(MIMEText(corpo_html, "html", "utf-8"))
 
-    log.info("Conectando ao SMTP %s:%s …", SMTP_HOST, SMTP_PORT)
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(EMAIL_FROM, EMAIL_PASSWORD)
-        smtp.sendmail(EMAIL_FROM, [EMAIL_TO], msg.as_string())
+    payload = {
+        "personalizations": [{"to": [{"email": EMAIL_TO}]}],
+        "from": {"email": EMAIL_FROM},
+        "subject": EMAIL_SUBJECT,
+        "content": [{"type": "text/html", "value": corpo_html}],
+    }
 
-    log.info("E-mail enviado para %s.", EMAIL_TO)
+    headers = {
+        "Authorization": f"Bearer {SENDGRID_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    log.info("Enviando e-mail via SendGrid para %s ...", EMAIL_TO)
+    try:
+        response = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers=headers,
+            data=json.dumps(payload),
+            timeout=30,
+        )
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as exc:
+        log.error("Erro ao enviar e-mail: %s - %s", exc.response.status_code, exc.response.text)
+        sys.exit(1)
+
+    log.info("E-mail enviado com sucesso para %s.", EMAIL_TO)
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +182,7 @@ def parse_args():
     parser.add_argument(
         "--data",
         default=date.today().isoformat(),
-        help="Data de busca no formato YYYY-MM-DD (padrão: hoje)",
+        help="Data de busca no formato YYYY-MM-DD (padrao: hoje)",
     )
     return parser.parse_args()
 
@@ -203,18 +196,18 @@ def main():
 
     resultados: dict[str, list] = {}
     for keyword in KEYWORDS:
-        log.info("Buscando: '%s' …", keyword)
+        log.info("Buscando: '%s' ...", keyword)
         pubs = buscar_publicacoes(keyword, data_busca)
         resultados[keyword] = pubs
-        log.info("  → %d resultado(s)", len(pubs))
+        log.info("  -> %d resultado(s)", len(pubs))
 
     total = sum(len(v) for v in resultados.values())
 
     if total == 0:
-        log.info("Nenhuma publicação encontrada. E-mail não enviado.")
+        log.info("Nenhuma publicacao encontrada. E-mail nao enviado.")
         sys.exit(0)
 
-    log.info("%d publicação(ões) encontrada(s). Preparando e-mail …", total)
+    log.info("%d publicacao(oes) encontrada(s). Preparando e-mail ...", total)
     enviar_email(resultados)
 
 
