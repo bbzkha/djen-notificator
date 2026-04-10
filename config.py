@@ -5,8 +5,11 @@ import os
 # Adicione nomes de partes, CPF, CNPJ, número de processo, etc.
 # ---------------------------------------------------------------------------
 KEYWORDS = [
-    "Exemplo Empresa Ltda",
-    "12.345.678/0001-99",
+    "Lorena Zucatelli dos Santos",
+    "Gilberto Alvares dos Santos",
+    "Vinicius Fregonazzi Tavares",
+    "Tecbras Empreendimentos Ltda",
+    "Spart Participacoes Ltda",
 ]
 
 # ---------------------------------------------------------------------------
